@@ -1,0 +1,102 @@
+---
+title: "AECOM - Volume vs MTTR"
+output: 
+  flexdashboard::flex_dashboard:
+    runtime: shiny
+    vertical_layout: fill
+---
+
+```{r setup, include=FALSE}
+library(flexdashboard)
+library(dplyr)
+library(lubridate)
+library(plotly)
+
+```
+
+Inputs {.sidebar}
+-------------------------------------
+
+```{r}
+    selectInput("monthSel", label = "Please select the month",
+            choices = c(7,8,9,10,11), selected = 7)
+```
+
+```{r}
+setwd("C:/Users/johnalva/Box Sync/My Documents/POOLS/AECOM/Daily Report/AECOM Queue Mgmt")
+aecom <- read.csv("CloseToWatson.csv")
+aecom$new_date <- mdy_hm(aecom$inc_closed_at)
+aecom$day <- day(aecom$new_date)
+aecom$month <- month(aecom$new_date)
+
+ac2 <- aecom
+p1 <- aggregate(data = ac2, Real_Total_Duration_Hours ~ inc_priority + day + month, mean)
+totals <- tbl_df(table(ac2$inc_priority, ac2$day, ac2$month))
+
+names(totals) <- c('inc_priority', 'day', 'month', 'total')
+t2 <- merge(p1, totals)
+t2$day <- as.numeric(t2$day)
+t2 <- merge(p1, totals)
+t2 <- t2[order(t2$month, t2$day),]
+t2$Real_Total_Duration_Hours <- round(t2$Real_Total_Duration_Hours, digits = 2)
+
+
+pl <- function(monthP, priorityP){
+    monthP <- as.numeric(monthP)
+    plot_ly(data = subset(t2, month == monthP & inc_priority == priorityP)) %>%
+            add_trace(x = ~day, y = ~total, type = 'bar', name ='Volume INC', hoverinfo = 'text',
+                      text = ~paste("Day:", day, "Volume:", total)) %>%
+            add_trace(x = ~day, y = ~Real_Total_Duration_Hours, hoverinfo = 'text',
+                      line = list(shape = 'spline'),
+                      text = ~paste("Day:", day,"AV MTTR:", Real_Total_Duration_Hours),
+                      yaxis = 'y2', name = 'Average INC') %>%
+            layout(title = paste0(priorityP, ', AECOM - Volume vs MTTR accross by ', month.name[monthP]),
+                xaxis = list(title = "Days"),
+                yaxis = list(side = 'left', title = "Volume INC Closed", showgrid = FALSE, zeroline = FALSE),
+                yaxis2 = list(side = 'right', overlaying = "y", title = 'Average MTTR', showgrid = FALSE, zeroline = FALSE)
+            )
+}
+
+```
+
+tab
+-------------------------------------------------------------------
+
+### Priority 1
+
+```{r}
+renderPlotly({
+    priority1 <- pl(input$monthSel, 'P1 - Critical')
+    priority1
+})
+
+```
+
+### Priority 2
+
+```{r}
+renderPlotly({
+    priority2 <- pl(input$monthSel, 'P2 - Major')
+    priority2
+})
+```
+
+Row
+-----------------------------------------------------------------------
+### Priority 3
+
+```{r}
+renderPlotly({
+    priority3 <- pl(input$monthSel, 'P3 - Minor')
+    priority3
+})
+```
+
+### Priority 4
+
+```{r}
+renderPlotly({
+    priority4 <- pl(input$monthSel, 'P4 - Low')
+    priority4
+})
+```
